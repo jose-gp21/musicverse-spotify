@@ -1,33 +1,50 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextResponse } from "next/server";
 import { connectDB } from "@/lib/db";
-import User from "@/models/User";
-import { verifyToken } from "@/lib/auth";
+import User, { IUser } from "@/models/User";
+import jwt from "jsonwebtoken";
 
-export async function GET(req: NextRequest) {
+export async function GET(req: Request) {
   await connectDB();
-  const cookie = req.cookies.get("token")?.value;
 
-  if (!cookie) {
-    return NextResponse.json({ user: null }, { status: 401 });
-  }
+  try {
+    const authHeader = req.headers.get("authorization");
+    const token = authHeader?.replace("Bearer ", "");
 
-  const payload = verifyToken(cookie);
-  if (!payload) {
-    return NextResponse.json({ user: null }, { status: 401 });
-  }
-
-  const user = await User.findById(payload.id).lean();
-  if (!user) {
-    return NextResponse.json({ user: null }, { status: 401 });
-  }
-
-  return NextResponse.json({
-    user: {
-      id: user._id,
-      name: user.name,
-      email: user.email,
-      favoriteGenres: user.favoriteGenres ?? [],
-      favoriteSongs: user.favoriteSongs ?? []
+    if (!token) {
+      return NextResponse.json(
+        { error: "No token provided" },
+        { status: 401 }
+      );
     }
-  });
+
+    const decoded = jwt.verify(token, process.env.JWT_SECRET!) as {
+      id: string;
+    };
+
+    // 🔥 FIX TOTAL: garante retorno único e tipado
+    const user = await User.findById(decoded.id).lean<IUser>();
+
+    if (!user) {
+      return NextResponse.json(
+        { error: "User not found" },
+        { status: 404 }
+      );
+    }
+
+    return NextResponse.json({
+      user: {
+        id: user._id.toString(),
+        name: user.name,
+        email: user.email,
+        favoriteGenres: user.favoriteGenres ?? [],
+        favoriteSongs: user.favoriteSongs ?? [],
+      },
+    });
+  } catch (err) {
+    console.error(err);
+    return NextResponse.json(
+      { error: "Invalid token" },
+      { status: 401 }
+    );
+  }
 }
