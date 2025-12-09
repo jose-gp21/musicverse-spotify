@@ -1,7 +1,7 @@
 import User, { IUser } from "@/models/User";
 import Song from "@/models/Song";
 
-export async function getRecommendations(userId: string) {
+export async function recommendForUser(userId: string) {
   // 🔥 Garantir retorno único e tipado
   const user = await User.findById(userId).lean<IUser>();
 
