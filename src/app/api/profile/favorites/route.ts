@@ -1,3 +1,4 @@
+// /api/profile/favorites/route.ts
 import { NextRequest, NextResponse } from "next/server";
 import { connectDB } from "@/lib/db";
 import User from "@/models/User";
@@ -5,28 +6,44 @@ import { verifyToken } from "@/lib/auth";
 
 export async function POST(req: NextRequest) {
   await connectDB();
-  const cookie = req.cookies.get("token")?.value;
-  if (!cookie) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  const payload = verifyToken(cookie);
-  if (!payload) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  try {
+    const token = req.cookies.get("token")?.value;
+    if (!token)
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  const { songId, action } = await req.json();
+    const payload = verifyToken(token);
+    if (!payload)
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  const user = await User.findById(payload.id);
-  if (!user) return NextResponse.json({ error: "User not found" }, { status: 404 });
+    const { songId, action } = await req.json();
+    if (!songId || !action)
+      return NextResponse.json({ error: "Invalid request" }, { status: 400 });
 
-  const favorites = user.favoriteSongs.map((id: any) => String(id));
+    const user = await User.findById(payload.id);
+    if (!user)
+      return NextResponse.json({ error: "User not found" }, { status: 404 });
 
-  if (action === "add" && !favorites.includes(songId)) {
-    user.favoriteSongs.push(songId);
-  } else if (action === "remove") {
-    user.favoriteSongs = user.favoriteSongs.filter((id: any) => String(id) !== songId);
+    // Normaliza array
+    const favorites = user.favoriteSongs.map((id: any) => id.toString());
+
+    if (action === "add") {
+      if (!favorites.includes(songId)) {
+        user.favoriteSongs.push(songId);
+      }
+    }
+
+    if (action === "remove") {
+      user.favoriteSongs = favorites.filter((id: any) => id !== songId);
+    }
+
+    await user.save();
+
+    return NextResponse.json({
+      favoriteSongs: user.favoriteSongs.map((id: any) => id.toString())
+    });
+  } catch (err) {
+    console.error("FAVORITES ERROR:", err);
+    return NextResponse.json({ error: "Server error" }, { status: 500 });
   }
-
-  await user.save();
-
-  return NextResponse.json({
-    favoriteSongs: user.favoriteSongs
-  });
 }
