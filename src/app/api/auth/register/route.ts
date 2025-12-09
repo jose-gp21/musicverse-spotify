@@ -5,7 +5,16 @@ import User from "@/models/User";
 
 export async function POST(req: NextRequest) {
   await connectDB();
+
   const { name, email, password, favoriteGenres } = await req.json();
+
+  // validação simples
+  if (!name || !email || !password) {
+    return NextResponse.json(
+      { error: "Campos obrigatórios faltando" },
+      { status: 400 }
+    );
+  }
 
   const existing = await User.findOne({ email });
   if (existing) {
@@ -20,9 +29,15 @@ export async function POST(req: NextRequest) {
   const user = await User.create({
     name,
     email,
-    passwordHash,
+    password: passwordHash, // ✅ CORREÇÃO
     favoriteGenres: favoriteGenres ?? []
   });
 
-  return NextResponse.json({ user: { id: user._id, name: user.name, email: user.email } });
+  return NextResponse.json({
+    user: {
+      id: user._id.toString(),
+      name: user.name,
+      email: user.email
+    }
+  });
 }
